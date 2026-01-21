@@ -1,9 +1,18 @@
+const cacheName = new Map();
+const cacheID = new Map();
 const searchPokemon = async (pokemonNameOrID) => {
     try {
+        // I used non‑null assertion operator (!) because its garantee the existence of cache with if cache.has()
+        if (typeof (pokemonNameOrID) === "string" && cacheName.has(pokemonNameOrID))
+            return cacheName.get(pokemonNameOrID);
+        if (typeof (pokemonNameOrID) === "number" && cacheID.has(pokemonNameOrID))
+            return cacheID.get(pokemonNameOrID);
         const pokemonResponseAPI = await fetch(`https://pokeapi.co/api/v2/pokemon/${pokemonNameOrID}`);
         if (!pokemonResponseAPI.ok)
             throw new Error(`HTTP GET error from fetch status: ${pokemonResponseAPI.status}`);
         const pokemonData = await pokemonResponseAPI.json();
+        cacheName.set(pokemonData.name, pokemonData);
+        cacheID.set(pokemonData.id, pokemonData);
         return pokemonData;
     }
     catch (error) {
@@ -34,6 +43,10 @@ const renderPokemon = async (pokemonNameOrID) => {
         pokemonNumber.textContent = String(pokemon.id);
         pokemonName.textContent = '- ' + pokemon.name;
         const sprite = pokemon.sprites.versions["generation-v"]["black-white"]["animated"]["front_default"];
+        if (!sprite) {
+            pokemonImage.style.display = "none";
+            return;
+        }
         pokemonImage.src = sprite;
         pokemonImage.style.display = "block";
         //refresh ID and form after render
