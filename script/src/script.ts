@@ -16,16 +16,9 @@ interface PokemonAPI {
     sprites: PokemonSprite
 }
 
-const cacheName = new Map<string, PokemonAPI>()
-const cacheID = new Map<number, PokemonAPI>()
-
 const searchPokemon = async (pokemonNameOrID: string | number): Promise<PokemonAPI> => {
 
     try {
-
-        // I used non‑null assertion operator (!) because its garantee the existence of cache with if cache.has()
-        if (typeof (pokemonNameOrID) === "string" && cacheName.has(pokemonNameOrID)) return cacheName.get(pokemonNameOrID)!
-        if (typeof (pokemonNameOrID) === "number" && cacheID.has(pokemonNameOrID)) return cacheID.get(pokemonNameOrID)!
 
         const pokemonResponseAPI = await fetch(
             `https://pokeapi.co/api/v2/pokemon/${pokemonNameOrID}`
@@ -34,8 +27,6 @@ const searchPokemon = async (pokemonNameOrID: string | number): Promise<PokemonA
         if (!pokemonResponseAPI.ok) throw new Error(`HTTP GET error from fetch status: ${pokemonResponseAPI.status}`)
 
         const pokemonData = await pokemonResponseAPI.json()
-        cacheName.set(pokemonData.name, pokemonData)
-        cacheID.set(pokemonData.id, pokemonData)
 
         return pokemonData
 
@@ -49,6 +40,48 @@ const searchPokemon = async (pokemonNameOrID: string | number): Promise<PokemonA
         throw error
 
     }
+}
+
+const cacheName = new Map<string, { data: PokemonAPI, timestamp: number }>()
+const cacheID = new Map<number, { data: PokemonAPI, timestamp: number }>()
+
+const cacheTimeToLive = 1_000 // miliseconds
+
+const cachePokemon = async (pokemonNameOrID: string | number): Promise<PokemonAPI> => {
+
+    //Lazy TimeToLive to refresh data...
+    if (typeof (pokemonNameOrID) === "string" && cacheName.has(pokemonNameOrID)) {
+
+        const nameCached = cacheName.get(pokemonNameOrID)!
+        const nameAge = Date.now() - nameCached.timestamp
+
+        if (nameAge <= cacheTimeToLive) return nameCached.data
+
+        cacheName.delete(pokemonNameOrID)
+        console.log(`${pokemonNameOrID} Deleted`)
+    }
+
+    if (typeof (pokemonNameOrID) === "number" && cacheID.has(pokemonNameOrID)) {
+
+        const IDcached = cacheID.get(pokemonNameOrID)!
+        const IDAge = Date.now() - IDcached.timestamp
+
+        if (IDAge <= cacheTimeToLive) return IDcached.data
+
+        cacheID.delete(pokemonNameOrID)
+        console.log(`${pokemonNameOrID} Deleted`)
+    }
+
+    //Least Recently Used...
+
+    const pokemonData = await searchPokemon(pokemonNameOrID)
+
+    //feeding cache
+    cacheName.set(pokemonData.name, { data: pokemonData, timestamp: Date.now() })
+    cacheID.set(pokemonData.id, { data: pokemonData, timestamp: Date.now() })
+
+    console.log(`${pokemonNameOrID} Cached`)
+    return pokemonData
 }
 
 const pokemonNumber = document.querySelector<HTMLSpanElement>('.pokemonNumber')
@@ -72,7 +105,7 @@ const renderPokemon = async (pokemonNameOrID: string | number) => {
         pokemonImage.style.display = "none"
         pokemonNumber.textContent = "#"
 
-        const pokemon = await searchPokemon(pokemonNameOrID)
+        const pokemon = await cachePokemon(pokemonNameOrID)
 
         pokemonNumber.textContent = String(pokemon.id)
         pokemonName.textContent = '- ' + pokemon.name
@@ -103,6 +136,16 @@ const renderPokemon = async (pokemonNameOrID: string | number) => {
     }
 }
 
+const normalizePokemonInput = (value: string): string | number => {
+
+    const asNumber = Number(value)
+
+    // isNaN(Number) say if this Number is valid or not. So, !isNaN say if he is valid.
+    if (!Number.isNaN(asNumber) && Number.isInteger(asNumber)) return asNumber
+
+    return value.toLowerCase()
+}
+
 const setupButtonsAndFormEvents = () => {
 
     if (!previousButtonPokedex || !nextButtonPokedex || !pokedexSearchForm || !pokemonNameOrIdInput) return
@@ -119,10 +162,13 @@ const setupButtonsAndFormEvents = () => {
 
     pokedexSearchForm.addEventListener("submit", (event) => {
         event.preventDefault()
-        const value = pokemonNameOrIdInput.value.toLocaleLowerCase()
 
-        if (!value) return
-        renderPokemon(value)
+        const rawValue = pokemonNameOrIdInput.value.toLocaleLowerCase()
+        if (!rawValue) return
+
+        const normalizedValue = normalizePokemonInput(rawValue)
+        console.log(typeof(normalizedValue))
+        renderPokemon(normalizedValue)
     })
 }
 

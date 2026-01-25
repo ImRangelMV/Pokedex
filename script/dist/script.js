@@ -1,18 +1,9 @@
-const cacheName = new Map();
-const cacheID = new Map();
 const searchPokemon = async (pokemonNameOrID) => {
     try {
-        // I used non‑null assertion operator (!) because its garantee the existence of cache with if cache.has()
-        if (typeof (pokemonNameOrID) === "string" && cacheName.has(pokemonNameOrID))
-            return cacheName.get(pokemonNameOrID);
-        if (typeof (pokemonNameOrID) === "number" && cacheID.has(pokemonNameOrID))
-            return cacheID.get(pokemonNameOrID);
         const pokemonResponseAPI = await fetch(`https://pokeapi.co/api/v2/pokemon/${pokemonNameOrID}`);
         if (!pokemonResponseAPI.ok)
             throw new Error(`HTTP GET error from fetch status: ${pokemonResponseAPI.status}`);
         const pokemonData = await pokemonResponseAPI.json();
-        cacheName.set(pokemonData.name, pokemonData);
-        cacheID.set(pokemonData.id, pokemonData);
         return pokemonData;
     }
     catch (error) {
@@ -23,6 +14,35 @@ const searchPokemon = async (pokemonNameOrID) => {
         });
         throw error;
     }
+};
+const cacheName = new Map();
+const cacheID = new Map();
+const cacheTimeToLive = 1_000; // miliseconds
+const cachePokemon = async (pokemonNameOrID) => {
+    //Lazy TimeToLive to refresh data...
+    if (typeof (pokemonNameOrID) === "string" && cacheName.has(pokemonNameOrID)) {
+        const nameCached = cacheName.get(pokemonNameOrID);
+        const nameAge = Date.now() - nameCached.timestamp;
+        if (nameAge <= cacheTimeToLive)
+            return nameCached.data;
+        cacheName.delete(pokemonNameOrID);
+        console.log(`${pokemonNameOrID} Deleted`);
+    }
+    if (typeof (pokemonNameOrID) === "number" && cacheID.has(pokemonNameOrID)) {
+        const IDcached = cacheID.get(pokemonNameOrID);
+        const IDAge = Date.now() - IDcached.timestamp;
+        if (IDAge <= cacheTimeToLive)
+            return IDcached.data;
+        cacheID.delete(pokemonNameOrID);
+        console.log(`${pokemonNameOrID} Deleted`);
+    }
+    //Least Recently Used...
+    const pokemonData = await searchPokemon(pokemonNameOrID);
+    //feeding cache
+    cacheName.set(pokemonData.name, { data: pokemonData, timestamp: Date.now() });
+    cacheID.set(pokemonData.id, { data: pokemonData, timestamp: Date.now() });
+    console.log(`${pokemonNameOrID} Cached`);
+    return pokemonData;
 };
 const pokemonNumber = document.querySelector('.pokemonNumber');
 const pokemonName = document.querySelector('.pokemonName');
@@ -39,7 +59,7 @@ const renderPokemon = async (pokemonNameOrID) => {
         pokemonName.textContent = "Searching...";
         pokemonImage.style.display = "none";
         pokemonNumber.textContent = "#";
-        const pokemon = await searchPokemon(pokemonNameOrID);
+        const pokemon = await cachePokemon(pokemonNameOrID);
         pokemonNumber.textContent = String(pokemon.id);
         pokemonName.textContent = '- ' + pokemon.name;
         const sprite = pokemon.sprites.versions["generation-v"]["black-white"]["animated"]["front_default"];
@@ -62,6 +82,13 @@ const renderPokemon = async (pokemonNameOrID) => {
         pokemonNameOrIdInput.value = "";
     }
 };
+const normalizePokemonInput = (value) => {
+    const asNumber = Number(value);
+    // isNaN(Number) say if this Number is valid or not. So, !isNaN say if he is valid.
+    if (!Number.isNaN(asNumber) && Number.isInteger(asNumber))
+        return asNumber;
+    return value.toLowerCase();
+};
 const setupButtonsAndFormEvents = () => {
     if (!previousButtonPokedex || !nextButtonPokedex || !pokedexSearchForm || !pokemonNameOrIdInput)
         return;
@@ -76,10 +103,12 @@ const setupButtonsAndFormEvents = () => {
     });
     pokedexSearchForm.addEventListener("submit", (event) => {
         event.preventDefault();
-        const value = pokemonNameOrIdInput.value.toLocaleLowerCase();
-        if (!value)
+        const rawValue = pokemonNameOrIdInput.value.toLocaleLowerCase();
+        if (!rawValue)
             return;
-        renderPokemon(value);
+        const normalizedValue = normalizePokemonInput(rawValue);
+        console.log(typeof (normalizedValue));
+        renderPokemon(normalizedValue);
     });
 };
 renderPokemon(currentID);
