@@ -16,6 +16,11 @@ interface PokemonAPI {
     sprites: PokemonSprite
 }
 
+interface CacheEntry {
+    data: PokemonAPI
+    timestamp: number
+}
+
 const searchPokemon = async (pokemonNameOrID: string | number): Promise<PokemonAPI> => {
 
     try {
@@ -42,45 +47,40 @@ const searchPokemon = async (pokemonNameOrID: string | number): Promise<PokemonA
     }
 }
 
-const cacheName = new Map<string, { data: PokemonAPI, timestamp: number }>()
-const cacheID = new Map<number, { data: PokemonAPI, timestamp: number }>()
-
-const cacheTimeToLive = 1_000 // miliseconds
+const cache = new Map<number, CacheEntry>()
+const nameToID = new Map<string, number>()
+const cacheTimeToLive = 10_000 // miliseconds
 
 const cachePokemon = async (pokemonNameOrID: string | number): Promise<PokemonAPI> => {
 
+    let resolvedID: number | null = null
+
+    if (typeof (pokemonNameOrID) === "number") resolvedID = pokemonNameOrID
+
+    if (typeof (pokemonNameOrID) === "string" && nameToID.has(pokemonNameOrID)) resolvedID = nameToID.get(pokemonNameOrID)!
+
     //Lazy TimeToLive to refresh data...
-    if (typeof (pokemonNameOrID) === "string" && cacheName.has(pokemonNameOrID)) {
+    if (resolvedID !== null && cache.has(resolvedID)) {
+        
+        const entry = cache.get(resolvedID)!
 
-        const nameCached = cacheName.get(pokemonNameOrID)!
-        const nameAge = Date.now() - nameCached.timestamp
+        const pokemon = entry.data
+        const pokemonBirth = entry.timestamp
+        const pokemonAge = Date.now() - pokemonBirth
 
-        if (nameAge <= cacheTimeToLive) return nameCached.data
-
-        cacheName.delete(pokemonNameOrID)
-        console.log(`${pokemonNameOrID} Deleted`)
+        if (pokemonAge <= cacheTimeToLive) return pokemon
+        
+        cache.delete(resolvedID)
+        console.log(`${resolvedID} Deleted`)
     }
-
-    if (typeof (pokemonNameOrID) === "number" && cacheID.has(pokemonNameOrID)) {
-
-        const IDcached = cacheID.get(pokemonNameOrID)!
-        const IDAge = Date.now() - IDcached.timestamp
-
-        if (IDAge <= cacheTimeToLive) return IDcached.data
-
-        cacheID.delete(pokemonNameOrID)
-        console.log(`${pokemonNameOrID} Deleted`)
-    }
-
-    //Least Recently Used...
 
     const pokemonData = await searchPokemon(pokemonNameOrID)
 
     //feeding cache
-    cacheName.set(pokemonData.name, { data: pokemonData, timestamp: Date.now() })
-    cacheID.set(pokemonData.id, { data: pokemonData, timestamp: Date.now() })
-
+    cache.set(pokemonData.id, { data: pokemonData, timestamp: Date.now() })
+    nameToID.set(pokemonData.name, pokemonData.id)
     console.log(`${pokemonNameOrID} Cached`)
+
     return pokemonData
 }
 
@@ -163,11 +163,9 @@ const setupButtonsAndFormEvents = () => {
     pokedexSearchForm.addEventListener("submit", (event) => {
         event.preventDefault()
 
-        const rawValue = pokemonNameOrIdInput.value.toLocaleLowerCase()
-        if (!rawValue) return
+        const rawValue = pokemonNameOrIdInput.value.toLowerCase()
+        const normalizedValue = normalizePokemonInput(rawValue) 
 
-        const normalizedValue = normalizePokemonInput(rawValue)
-        console.log(typeof(normalizedValue))
         renderPokemon(normalizedValue)
     })
 }
