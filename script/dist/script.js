@@ -8,7 +8,7 @@ const searchPokemon = async (pokemonNameOrID) => {
     }
     catch (error) {
         console.error({
-            where: "searchPokemonh()",
+            where: "searchPokemon()",
             input: "pokemonNameOrID",
             error
         });
@@ -17,35 +17,49 @@ const searchPokemon = async (pokemonNameOrID) => {
 };
 const cache = new Map();
 const nameToID = new Map();
-const cacheTimeToLive = 10_000; // miliseconds
+const cacheTimeToLive = 60_000; // miliseconds
+const cacheMaxSize = 25;
 const cachePokemon = async (pokemonNameOrID) => {
+    // normalizing
     let resolvedID = null;
     if (typeof (pokemonNameOrID) === "number")
         resolvedID = pokemonNameOrID;
     if (typeof (pokemonNameOrID) === "string" && nameToID.has(pokemonNameOrID))
         resolvedID = nameToID.get(pokemonNameOrID);
-    //Lazy TimeToLive to refresh data...
+    // Lazy TimeToLive to refresh data...
     if (resolvedID !== null && cache.has(resolvedID)) {
         const entry = cache.get(resolvedID);
         const pokemon = entry.data;
         const pokemonBirth = entry.timestamp;
         const pokemonAge = Date.now() - pokemonBirth;
-        if (pokemonAge <= cacheTimeToLive)
+        // valid TTL → LRU moves to end
+        if (pokemonAge <= cacheTimeToLive) {
+            cache.delete(resolvedID);
+            cache.set(resolvedID, {
+                data: pokemon,
+                timestamp: Date.now()
+            });
             return pokemon;
+        }
+        // expired TTL → remove
         cache.delete(resolvedID);
-        console.log(`${resolvedID} Deleted`);
     }
     const pokemonData = await searchPokemon(pokemonNameOrID);
-    //feeding cache
+    // feeding cache
     cache.set(pokemonData.id, { data: pokemonData, timestamp: Date.now() });
     nameToID.set(pokemonData.name, pokemonData.id);
-    console.log(`${pokemonNameOrID} Cached`);
+    // eviction (LRU)
+    if (cache.size > cacheMaxSize) {
+        const oldestKey = cache.keys().next().value;
+        if (oldestKey !== undefined)
+            cache.delete(oldestKey);
+    }
     return pokemonData;
 };
 const pokemonNumber = document.querySelector('.pokemonNumber');
 const pokemonName = document.querySelector('.pokemonName');
 const pokemonImage = document.querySelector('.pokemonImage');
-let currentID = 1;
+let currentID = 158;
 const previousButtonPokedex = document.querySelector('.previousButton');
 const nextButtonPokedex = document.querySelector('.nextButton');
 const pokedexSearchForm = document.querySelector('.pokemonSearch');
@@ -54,10 +68,12 @@ const renderPokemon = async (pokemonNameOrID) => {
     try {
         if (!pokemonNumber || !pokemonName || !pokemonImage || !pokemonNameOrIdInput)
             return;
+        // loading
         pokemonName.textContent = "Searching...";
         pokemonImage.style.display = "none";
         pokemonNumber.textContent = "#";
         const pokemon = await cachePokemon(pokemonNameOrID);
+        // loaded
         pokemonNumber.textContent = String(pokemon.id);
         pokemonName.textContent = '- ' + pokemon.name;
         const sprite = pokemon.sprites.versions["generation-v"]["black-white"]["animated"]["front_default"];
@@ -75,33 +91,40 @@ const renderPokemon = async (pokemonNameOrID) => {
         if (!pokemonNumber || !pokemonName || !pokemonImage || !pokemonNameOrIdInput)
             return;
         pokemonNumber.textContent = "#";
-        pokemonName.textContent = "Not encontered.";
+        pokemonName.textContent = "Not encountered.";
         pokemonImage.style.display = "none";
         pokemonNameOrIdInput.value = "";
+        currentID = 0;
     }
 };
 const normalizePokemonInput = (value) => {
     const asNumber = Number(value);
-    // isNaN(Number) say if this Number is valid or not. So, !isNaN say if he is valid.
+    // normalizing valids and integer numbers
     if (!Number.isNaN(asNumber) && Number.isInteger(asNumber))
         return asNumber;
     return value.toLowerCase();
 };
+const lastPokemonWithImage = 649;
+const firstPokemonWithoutImage = 650;
 const setupButtonsAndFormEvents = () => {
     if (!previousButtonPokedex || !nextButtonPokedex || !pokedexSearchForm || !pokemonNameOrIdInput)
         return;
     previousButtonPokedex.addEventListener("click", () => {
         if (currentID > 1)
             currentID = currentID - 1;
+        if (currentID <= 1)
+            currentID = firstPokemonWithoutImage - 1;
         renderPokemon(currentID);
     });
     nextButtonPokedex.addEventListener("click", () => {
+        if (currentID >= lastPokemonWithImage)
+            currentID = 0;
         currentID = currentID + 1;
         renderPokemon(currentID);
     });
     pokedexSearchForm.addEventListener("submit", (event) => {
         event.preventDefault();
-        const rawValue = pokemonNameOrIdInput.value.toLowerCase();
+        const rawValue = pokemonNameOrIdInput.value;
         const normalizedValue = normalizePokemonInput(rawValue);
         renderPokemon(normalizedValue);
     });

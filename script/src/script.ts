@@ -31,35 +31,37 @@ const searchPokemon = async (pokemonNameOrID: string | number): Promise<PokemonA
 
         if (!pokemonResponseAPI.ok) throw new Error(`HTTP GET error from fetch status: ${pokemonResponseAPI.status}`)
 
-        const pokemonData = await pokemonResponseAPI.json()
+        const pokemonData: PokemonAPI = await pokemonResponseAPI.json()
 
         return pokemonData
 
     } catch (error) {
 
         console.error({
-            where: "searchPokemonh()",
+            where: "searchPokemon()",
             input: "pokemonNameOrID",
             error
         })
-        throw error
 
+        throw error
     }
 }
 
 const cache = new Map<number, CacheEntry>()
 const nameToID = new Map<string, number>()
-const cacheTimeToLive = 10_000 // miliseconds
+const cacheTimeToLive = 60_000 // miliseconds
+const cacheMaxSize = 25
 
 const cachePokemon = async (pokemonNameOrID: string | number): Promise<PokemonAPI> => {
 
+    // normalizing
     let resolvedID: number | null = null
 
     if (typeof (pokemonNameOrID) === "number") resolvedID = pokemonNameOrID
 
     if (typeof (pokemonNameOrID) === "string" && nameToID.has(pokemonNameOrID)) resolvedID = nameToID.get(pokemonNameOrID)!
 
-    //Lazy TimeToLive to refresh data...
+    // Lazy TimeToLive to refresh data...
     if (resolvedID !== null && cache.has(resolvedID)) {
         
         const entry = cache.get(resolvedID)!
@@ -68,18 +70,35 @@ const cachePokemon = async (pokemonNameOrID: string | number): Promise<PokemonAP
         const pokemonBirth = entry.timestamp
         const pokemonAge = Date.now() - pokemonBirth
 
-        if (pokemonAge <= cacheTimeToLive) return pokemon
+        // valid TTL → LRU moves to end
+        if (pokemonAge <= cacheTimeToLive) {
+
+            cache.delete(resolvedID)
+            cache.set(resolvedID, {
+                data: pokemon, 
+                timestamp: Date.now()
+            })
+
+            return pokemon
+        } 
         
+        // expired TTL → remove
         cache.delete(resolvedID)
-        console.log(`${resolvedID} Deleted`)
     }
 
     const pokemonData = await searchPokemon(pokemonNameOrID)
 
-    //feeding cache
+    // feeding cache
     cache.set(pokemonData.id, { data: pokemonData, timestamp: Date.now() })
     nameToID.set(pokemonData.name, pokemonData.id)
-    console.log(`${pokemonNameOrID} Cached`)
+
+    // eviction (LRU)
+    if (cache.size > cacheMaxSize) {
+
+        const oldestKey = cache.keys().next().value
+        if(oldestKey !== undefined) cache.delete(oldestKey)
+
+    }
 
     return pokemonData
 }
@@ -88,7 +107,7 @@ const pokemonNumber = document.querySelector<HTMLSpanElement>('.pokemonNumber')
 const pokemonName = document.querySelector<HTMLParagraphElement>('.pokemonName')
 const pokemonImage = document.querySelector<HTMLImageElement>('.pokemonImage')
 
-let currentID = 1
+let currentID = 158
 
 const previousButtonPokedex = document.querySelector<HTMLButtonElement>('.previousButton')
 const nextButtonPokedex = document.querySelector<HTMLButtonElement>('.nextButton')
@@ -101,12 +120,14 @@ const renderPokemon = async (pokemonNameOrID: string | number) => {
 
         if (!pokemonNumber || !pokemonName || !pokemonImage || !pokemonNameOrIdInput) return
 
+        // loading
         pokemonName.textContent = "Searching..."
         pokemonImage.style.display = "none"
         pokemonNumber.textContent = "#"
 
         const pokemon = await cachePokemon(pokemonNameOrID)
 
+        // loaded
         pokemonNumber.textContent = String(pokemon.id)
         pokemonName.textContent = '- ' + pokemon.name
 
@@ -129,9 +150,10 @@ const renderPokemon = async (pokemonNameOrID: string | number) => {
         if (!pokemonNumber || !pokemonName || !pokemonImage || !pokemonNameOrIdInput) return
 
         pokemonNumber.textContent = "#"
-        pokemonName.textContent = "Not encontered."
+        pokemonName.textContent = "Not encountered."
         pokemonImage.style.display = "none"
         pokemonNameOrIdInput.value = ""
+        currentID = 0
 
     }
 }
@@ -140,11 +162,14 @@ const normalizePokemonInput = (value: string): string | number => {
 
     const asNumber = Number(value)
 
-    // isNaN(Number) say if this Number is valid or not. So, !isNaN say if he is valid.
+    // normalizing valids and integer numbers
     if (!Number.isNaN(asNumber) && Number.isInteger(asNumber)) return asNumber
 
     return value.toLowerCase()
 }
+
+const lastPokemonWithImage = 649
+const firstPokemonWithoutImage = 650
 
 const setupButtonsAndFormEvents = () => {
 
@@ -152,10 +177,12 @@ const setupButtonsAndFormEvents = () => {
 
     previousButtonPokedex.addEventListener("click", () => {
         if (currentID > 1) currentID = currentID - 1
+        if (currentID <= 1) currentID = firstPokemonWithoutImage - 1
         renderPokemon(currentID)
     })
 
     nextButtonPokedex.addEventListener("click", () => {
+        if (currentID >= lastPokemonWithImage) currentID = 0
         currentID = currentID + 1
         renderPokemon(currentID)
     })
@@ -163,7 +190,7 @@ const setupButtonsAndFormEvents = () => {
     pokedexSearchForm.addEventListener("submit", (event) => {
         event.preventDefault()
 
-        const rawValue = pokemonNameOrIdInput.value.toLowerCase()
+        const rawValue = pokemonNameOrIdInput.value
         const normalizedValue = normalizePokemonInput(rawValue) 
 
         renderPokemon(normalizedValue)
