@@ -60,18 +60,40 @@ const pokemonNumber = document.querySelector('.pokemonNumber');
 const pokemonName = document.querySelector('.pokemonName');
 const pokemonImage = document.querySelector('.pokemonImage');
 let currentID = 158;
-const previousButtonPokedex = document.querySelector('.previousButton');
-const nextButtonPokedex = document.querySelector('.nextButton');
+const previousButtonNavigation = document.querySelector('.previousButton');
+const nextButtonNavigation = document.querySelector('.nextButton');
 const pokedexSearchForm = document.querySelector('.pokemonSearch');
 const pokemonNameOrIdInput = document.querySelector('.inputSearch');
+const favoriteStampButton = document.querySelector('.favorite');
+const firstFavoriteButton = document.querySelector('.one');
+const secondFavoriteButton = document.querySelector('.two');
+const thirdFavoriteButton = document.querySelector('.three');
+const updateFavoriteUI = () => {
+    const favorites = getFavorites();
+    if (!firstFavoriteButton || !secondFavoriteButton || !thirdFavoriteButton || !favorites)
+        return;
+    firstFavoriteButton.textContent = `${favorites[0]}`;
+    secondFavoriteButton.textContent = `${favorites[1]}`;
+    thirdFavoriteButton.textContent = `${favorites[2]}`;
+    if (favorites[0] === null)
+        firstFavoriteButton.textContent = "I";
+    if (favorites[1] === null)
+        secondFavoriteButton.textContent = "II";
+    if (favorites[2] === null)
+        thirdFavoriteButton.textContent = "III";
+};
 const renderPokemon = async (pokemonNameOrID) => {
     try {
-        if (!pokemonNumber || !pokemonName || !pokemonImage || !pokemonNameOrIdInput)
+        if (!pokemonNumber || !pokemonName || !pokemonImage || !pokemonNameOrIdInput ||
+            !firstFavoriteButton || !secondFavoriteButton || !thirdFavoriteButton)
             return;
         // loading
         pokemonName.textContent = "Searching...";
         pokemonImage.style.display = "none";
         pokemonNumber.textContent = "#";
+        firstFavoriteButton.textContent = "1";
+        secondFavoriteButton.textContent = "2";
+        thirdFavoriteButton.textContent = "3";
         const pokemon = await cachePokemon(pokemonNameOrID);
         // loaded
         pokemonNumber.textContent = String(pokemon.id);
@@ -83,18 +105,23 @@ const renderPokemon = async (pokemonNameOrID) => {
         }
         pokemonImage.src = sprite;
         pokemonImage.style.display = "block";
+        updateFavoriteUI();
         //refresh ID and form after render
         currentID = pokemon.id;
         pokemonNameOrIdInput.value = "";
     }
     catch {
-        if (!pokemonNumber || !pokemonName || !pokemonImage || !pokemonNameOrIdInput)
+        if (!pokemonNumber || !pokemonName || !pokemonImage || !pokemonNameOrIdInput ||
+            !firstFavoriteButton || !secondFavoriteButton || !thirdFavoriteButton)
             return;
         pokemonNumber.textContent = "#";
         pokemonName.textContent = "Not encountered.";
         pokemonImage.style.display = "none";
         pokemonNameOrIdInput.value = "";
         currentID = 0;
+        firstFavoriteButton.textContent = "1";
+        secondFavoriteButton.textContent = "2";
+        thirdFavoriteButton.textContent = "3";
     }
 };
 const normalizePokemonInput = (value) => {
@@ -106,20 +133,74 @@ const normalizePokemonInput = (value) => {
 };
 const lastPokemonWithImage = 649;
 const firstPokemonWithoutImage = 650;
+const getFavorites = () => {
+    let fav = localStorage.getItem("IDs");
+    if (!fav)
+        return [null, null, null];
+    // parse returns a array copy
+    let favRecupered = JSON.parse(fav);
+    return favRecupered;
+};
+const setFavorites = (favArray) => {
+    let arrayToString = JSON.stringify(favArray);
+    localStorage.setItem("IDs", arrayToString);
+};
+// const favorites = getFavorites()
 const setupButtonsAndFormEvents = () => {
-    if (!previousButtonPokedex || !nextButtonPokedex || !pokedexSearchForm || !pokemonNameOrIdInput)
+    if (!previousButtonNavigation || !nextButtonNavigation || !pokedexSearchForm || !pokemonNameOrIdInput
+        || !favoriteStampButton || !firstFavoriteButton || !secondFavoriteButton || !thirdFavoriteButton)
         return;
-    previousButtonPokedex.addEventListener("click", () => {
-        if (currentID > 1)
+    previousButtonNavigation.addEventListener("click", () => {
+        if (currentID >= 1)
             currentID = currentID - 1;
-        if (currentID <= 1)
+        if (currentID < 1)
             currentID = firstPokemonWithoutImage - 1;
         renderPokemon(currentID);
     });
-    nextButtonPokedex.addEventListener("click", () => {
+    nextButtonNavigation.addEventListener("click", () => {
         if (currentID >= lastPokemonWithImage)
             currentID = 0;
         currentID = currentID + 1;
+        renderPokemon(currentID);
+    });
+    favoriteStampButton.addEventListener("click", () => {
+        const favorites = getFavorites();
+        let index = -1;
+        for (let i = 0; i < favorites.length; i = i + 1) {
+            //avoid duplicates
+            if (favorites[i] === currentID)
+                return;
+            //replace the first null
+            if (favorites[i] === null) {
+                index = i;
+                break;
+            }
+        }
+        if (index !== -1)
+            favorites[index] = currentID;
+        if (index === -1) {
+            favorites.shift();
+            favorites.push(currentID);
+        }
+        setFavorites(favorites);
+        updateFavoriteUI();
+    });
+    firstFavoriteButton.addEventListener("click", () => {
+        const favorites = getFavorites();
+        if (typeof (favorites[0]) === "number")
+            currentID = favorites[0];
+        renderPokemon(currentID);
+    });
+    secondFavoriteButton.addEventListener("click", () => {
+        const favorites = getFavorites();
+        if (typeof (favorites[1]) === "number")
+            currentID = favorites[1];
+        renderPokemon(currentID);
+    });
+    thirdFavoriteButton.addEventListener("click", (event) => {
+        const favorites = getFavorites();
+        if (typeof (favorites[2]) === "number")
+            currentID = favorites[2];
         renderPokemon(currentID);
     });
     pokedexSearchForm.addEventListener("submit", (event) => {

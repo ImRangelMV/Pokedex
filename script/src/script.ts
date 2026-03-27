@@ -63,7 +63,7 @@ const cachePokemon = async (pokemonNameOrID: string | number): Promise<PokemonAP
 
     // Lazy TimeToLive to refresh data...
     if (resolvedID !== null && cache.has(resolvedID)) {
-        
+
         const entry = cache.get(resolvedID)!
 
         const pokemon = entry.data
@@ -75,13 +75,13 @@ const cachePokemon = async (pokemonNameOrID: string | number): Promise<PokemonAP
 
             cache.delete(resolvedID)
             cache.set(resolvedID, {
-                data: pokemon, 
+                data: pokemon,
                 timestamp: Date.now()
             })
 
             return pokemon
-        } 
-        
+        }
+
         // expired TTL → remove
         cache.delete(resolvedID)
     }
@@ -96,7 +96,7 @@ const cachePokemon = async (pokemonNameOrID: string | number): Promise<PokemonAP
     if (cache.size > cacheMaxSize) {
 
         const oldestKey = cache.keys().next().value
-        if(oldestKey !== undefined) cache.delete(oldestKey)
+        if (oldestKey !== undefined) cache.delete(oldestKey)
 
     }
 
@@ -107,23 +107,49 @@ const pokemonNumber = document.querySelector<HTMLSpanElement>('.pokemonNumber')
 const pokemonName = document.querySelector<HTMLParagraphElement>('.pokemonName')
 const pokemonImage = document.querySelector<HTMLImageElement>('.pokemonImage')
 
-let currentID = 158
+let currentID: number = 158
 
-const previousButtonPokedex = document.querySelector<HTMLButtonElement>('.previousButton')
-const nextButtonPokedex = document.querySelector<HTMLButtonElement>('.nextButton')
+const previousButtonNavigation = document.querySelector<HTMLButtonElement>('.previousButton')
+const nextButtonNavigation = document.querySelector<HTMLButtonElement>('.nextButton')
 const pokedexSearchForm = document.querySelector<HTMLFormElement>('.pokemonSearch')
 const pokemonNameOrIdInput = document.querySelector<HTMLInputElement>('.inputSearch')
+
+const favoriteStampButton = document.querySelector<HTMLButtonElement>('.favorite')
+const firstFavoriteButton = document.querySelector<HTMLButtonElement>('.one')
+const secondFavoriteButton = document.querySelector<HTMLButtonElement>('.two')
+const thirdFavoriteButton = document.querySelector<HTMLButtonElement>('.three')
+
+const updateFavoriteUI = () => {
+
+    const favorites = getFavorites()
+
+    if (!firstFavoriteButton || !secondFavoriteButton || !thirdFavoriteButton || !favorites) return
+
+    firstFavoriteButton.textContent = `${favorites[0]}`
+    secondFavoriteButton.textContent = `${favorites[1]}`
+    thirdFavoriteButton.textContent = `${favorites[2]}`
+
+    if (favorites[0] === null) firstFavoriteButton.textContent = "I"
+    if (favorites[1] === null) secondFavoriteButton.textContent = "II"
+    if (favorites[2] === null) thirdFavoriteButton.textContent = "III"
+
+}
 
 const renderPokemon = async (pokemonNameOrID: string | number) => {
 
     try {
 
-        if (!pokemonNumber || !pokemonName || !pokemonImage || !pokemonNameOrIdInput) return
+        if (!pokemonNumber || !pokemonName || !pokemonImage || !pokemonNameOrIdInput ||
+            !firstFavoriteButton || !secondFavoriteButton || !thirdFavoriteButton) return
 
         // loading
         pokemonName.textContent = "Searching..."
         pokemonImage.style.display = "none"
         pokemonNumber.textContent = "#"
+
+        firstFavoriteButton.textContent = "1"
+        secondFavoriteButton.textContent = "2"
+        thirdFavoriteButton.textContent = "3"
 
         const pokemon = await cachePokemon(pokemonNameOrID)
 
@@ -141,19 +167,26 @@ const renderPokemon = async (pokemonNameOrID: string | number) => {
         pokemonImage.src = sprite
         pokemonImage.style.display = "block"
 
+        updateFavoriteUI()
+
         //refresh ID and form after render
         currentID = pokemon.id
         pokemonNameOrIdInput.value = ""
 
     } catch {
 
-        if (!pokemonNumber || !pokemonName || !pokemonImage || !pokemonNameOrIdInput) return
+        if (!pokemonNumber || !pokemonName || !pokemonImage || !pokemonNameOrIdInput ||
+            !firstFavoriteButton || !secondFavoriteButton || !thirdFavoriteButton) return
 
         pokemonNumber.textContent = "#"
         pokemonName.textContent = "Not encountered."
         pokemonImage.style.display = "none"
         pokemonNameOrIdInput.value = ""
         currentID = 0
+
+        firstFavoriteButton.textContent = "1"
+        secondFavoriteButton.textContent = "2"
+        thirdFavoriteButton.textContent = "3"
 
     }
 }
@@ -171,19 +204,90 @@ const normalizePokemonInput = (value: string): string | number => {
 const lastPokemonWithImage = 649
 const firstPokemonWithoutImage = 650
 
+const getFavorites = (): [number | null, number | null, number | null] => {
+
+    let fav = localStorage.getItem("IDs")
+    if (!fav) return [null, null, null]
+
+    // parse returns a array copy
+    let favRecupered: [number | null, number | null, number | null] = JSON.parse(fav)
+
+    return favRecupered
+}
+
+const setFavorites = (favArray: [number | null, number | null, number | null]) => {
+
+    let arrayToString = JSON.stringify(favArray)
+
+    localStorage.setItem("IDs", arrayToString)
+
+}
+
+// const favorites = getFavorites()
+
 const setupButtonsAndFormEvents = () => {
 
-    if (!previousButtonPokedex || !nextButtonPokedex || !pokedexSearchForm || !pokemonNameOrIdInput) return
+    if (!previousButtonNavigation || !nextButtonNavigation || !pokedexSearchForm || !pokemonNameOrIdInput
+        || !favoriteStampButton || !firstFavoriteButton || !secondFavoriteButton || !thirdFavoriteButton) return
 
-    previousButtonPokedex.addEventListener("click", () => {
-        if (currentID > 1) currentID = currentID - 1
-        if (currentID <= 1) currentID = firstPokemonWithoutImage - 1
+    previousButtonNavigation.addEventListener("click", () => {
+        if (currentID >= 1) currentID = currentID - 1
+        if (currentID < 1) currentID = firstPokemonWithoutImage - 1
         renderPokemon(currentID)
     })
 
-    nextButtonPokedex.addEventListener("click", () => {
+    nextButtonNavigation.addEventListener("click", () => {
         if (currentID >= lastPokemonWithImage) currentID = 0
         currentID = currentID + 1
+        renderPokemon(currentID)
+    })
+
+    favoriteStampButton.addEventListener("click", () => {
+
+        const favorites = getFavorites()
+        let index = -1
+
+        for (let i = 0; i < favorites.length; i = i + 1) {
+
+            //avoid duplicates
+            if (favorites[i] === currentID) return
+
+            //replace the first null
+            if (favorites[i] === null) {
+                index = i
+                break
+            }
+        }
+
+        if (index !== -1) favorites[index] = currentID
+
+        if (index === -1) {
+
+            favorites.shift()
+            favorites.push(currentID)
+
+        }
+
+        setFavorites(favorites)
+        updateFavoriteUI()
+
+    })
+
+    firstFavoriteButton.addEventListener("click", () => {
+        const favorites = getFavorites()
+        if (typeof (favorites[0]) === "number") currentID = favorites[0]
+        renderPokemon(currentID)
+    })
+
+    secondFavoriteButton.addEventListener("click", () => {
+        const favorites = getFavorites()
+        if (typeof (favorites[1]) === "number") currentID = favorites[1]
+        renderPokemon(currentID)
+    })
+
+    thirdFavoriteButton.addEventListener("click", (event) => {
+        const favorites = getFavorites()
+        if (typeof (favorites[2]) === "number") currentID = favorites[2]
         renderPokemon(currentID)
     })
 
@@ -191,7 +295,7 @@ const setupButtonsAndFormEvents = () => {
         event.preventDefault()
 
         const rawValue = pokemonNameOrIdInput.value
-        const normalizedValue = normalizePokemonInput(rawValue) 
+        const normalizedValue = normalizePokemonInput(rawValue)
 
         renderPokemon(normalizedValue)
     })
