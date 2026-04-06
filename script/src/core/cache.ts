@@ -1,0 +1,58 @@
+import type {CacheEntry, PokemonAPI} from "../types/pokemon.js"
+import {searchPokemon} from "../api/pokemon.js"
+
+const cache = new Map<number, CacheEntry>()
+const nameToID = new Map<string, number>()
+const cacheTimeToLive = 60_000 // miliseconds
+const cacheMaxSize = 25
+
+export const cachePokemon = async (pokemonNameOrID: string | number): Promise<PokemonAPI> => {
+
+    // normalizing
+    let resolvedID: number | null = null
+
+    if (typeof (pokemonNameOrID) === "number") resolvedID = pokemonNameOrID
+
+    if (typeof (pokemonNameOrID) === "string" && nameToID.has(pokemonNameOrID)) resolvedID = nameToID.get(pokemonNameOrID)!
+
+    // Lazy TimeToLive to refresh data...
+    if (resolvedID !== null && cache.has(resolvedID)) {
+
+        const entry = cache.get(resolvedID)!
+
+        const pokemon = entry.data
+        const pokemonBirth = entry.timestamp
+        const pokemonAge = Date.now() - pokemonBirth
+
+        // valid TTL → LRU moves to end
+        if (pokemonAge <= cacheTimeToLive) {
+
+            cache.delete(resolvedID)
+            cache.set(resolvedID, {
+                data: pokemon,
+                timestamp: Date.now()
+            })
+
+            return pokemon
+        }
+
+        // expired TTL → remove
+        cache.delete(resolvedID)
+    }
+
+    const pokemonData = await searchPokemon(pokemonNameOrID)
+
+    // feeding cache
+    cache.set(pokemonData.id, { data: pokemonData, timestamp: Date.now() })
+    nameToID.set(pokemonData.name, pokemonData.id)
+
+    // eviction (LRU)
+    if (cache.size > cacheMaxSize) {
+
+        const oldestKey = cache.keys().next().value
+        if (oldestKey !== undefined) cache.delete(oldestKey)
+
+    }
+
+    return pokemonData
+}
