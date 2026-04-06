@@ -45,8 +45,8 @@
 .pokemonData {
     position: absolute;
     top: 55%;
-    width: 50%;
-    transform: translateX(+7%);
+    width: 60%;
+    transform: translateX(+4.5%);
     display: flex;
     justify-content: center;
     gap: 0.5vw;
@@ -58,7 +58,7 @@
 }
 
 .pokemonName {
-    font-size: clamp(0.6rem, 2.3vw, 1.8rem);
+    font-size: clamp(0.6rem, 2vw, 1.8rem);
     text-transform: capitalize;
 }
 
