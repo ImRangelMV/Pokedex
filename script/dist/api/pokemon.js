@@ -1,6 +1,7 @@
-export const searchPokemon = async (pokemonNameOrID) => {
+import { state } from "../state/state.js";
+export const searchPokemon = async (pokemonNameOrID, baseURL = state.baseURL) => {
     try {
-        const pokemonResponseAPI = await fetch(`https://pokeapi.co/api/v2/pokemon/${pokemonNameOrID}`);
+        const pokemonResponseAPI = await fetch(`${baseURL}pokemon/${pokemonNameOrID}`);
         if (!pokemonResponseAPI.ok)
             throw new Error(`HTTP GET error from fetch status: ${pokemonResponseAPI.status}`);
         const pokemonData = await pokemonResponseAPI.json();
@@ -9,7 +10,7 @@ export const searchPokemon = async (pokemonNameOrID) => {
     catch (error) {
         console.error({
             where: "searchPokemon()",
-            input: "pokemonNameOrID",
+            input: pokemonNameOrID,
             error
         });
         throw error;

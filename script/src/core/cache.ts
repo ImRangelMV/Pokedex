@@ -1,10 +1,9 @@
 import type {CacheEntry, PokemonAPI} from "../types/pokemon.js"
 import {searchPokemon} from "../api/pokemon.js"
+import { state } from "../state/state.js"
 
 const cache = new Map<number, CacheEntry>()
 const nameToID = new Map<string, number>()
-const cacheTimeToLive = 60_000 // miliseconds
-const cacheMaxSize = 25
 
 export const cachePokemon = async (pokemonNameOrID: string | number): Promise<PokemonAPI> => {
 
@@ -25,7 +24,7 @@ export const cachePokemon = async (pokemonNameOrID: string | number): Promise<Po
         const pokemonAge = Date.now() - pokemonBirth
 
         // valid TTL → LRU moves to end
-        if (pokemonAge <= cacheTimeToLive) {
+        if (pokemonAge <= state.cacheTimeToLive) {
 
             cache.delete(resolvedID)
             cache.set(resolvedID, {
@@ -47,7 +46,7 @@ export const cachePokemon = async (pokemonNameOrID: string | number): Promise<Po
     nameToID.set(pokemonData.name, pokemonData.id)
 
     // eviction (LRU)
-    if (cache.size > cacheMaxSize) {
+    if (cache.size > state.cacheMaxSize) {
 
         const oldestKey = cache.keys().next().value
         if (oldestKey !== undefined) cache.delete(oldestKey)

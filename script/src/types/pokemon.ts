@@ -21,4 +21,6 @@ interface CacheEntry {
     timestamp: number
 }
 
-export type { PokemonSprite, PokemonAPI, CacheEntry}
+type Favorites = [number | null, number | null, number | null]
+
+export type { PokemonSprite, PokemonAPI, CacheEntry, Favorites}

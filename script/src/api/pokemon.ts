@@ -1,11 +1,12 @@
-import type { PokemonAPI } from "../types/pokemon"
+import type { PokemonAPI } from "../types/pokemon.js"
+import { state } from "../state/state.js"
 
-export const searchPokemon = async (pokemonNameOrID: string | number): Promise<PokemonAPI> => {
+export const searchPokemon = async (pokemonNameOrID: string | number, baseURL: string = state.baseURL): Promise<PokemonAPI> => {
 
     try {
 
         const pokemonResponseAPI = await fetch(
-            `https://pokeapi.co/api/v2/pokemon/${pokemonNameOrID}`
+            `${baseURL}pokemon/${pokemonNameOrID}`
         )
 
         if (!pokemonResponseAPI.ok) throw new Error(`HTTP GET error from fetch status: ${pokemonResponseAPI.status}`)
@@ -18,7 +19,7 @@ export const searchPokemon = async (pokemonNameOrID: string | number): Promise<P
 
         console.error({
             where: "searchPokemon()",
-            input: "pokemonNameOrID",
+            input: pokemonNameOrID,
             error
         })
 

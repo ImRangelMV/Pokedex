@@ -1,8 +1,7 @@
 import { searchPokemon } from "../api/pokemon.js";
+import { state } from "../state/state.js";
 const cache = new Map();
 const nameToID = new Map();
-const cacheTimeToLive = 60_000; // miliseconds
-const cacheMaxSize = 25;
 export const cachePokemon = async (pokemonNameOrID) => {
     // normalizing
     let resolvedID = null;
@@ -17,7 +16,7 @@ export const cachePokemon = async (pokemonNameOrID) => {
         const pokemonBirth = entry.timestamp;
         const pokemonAge = Date.now() - pokemonBirth;
         // valid TTL → LRU moves to end
-        if (pokemonAge <= cacheTimeToLive) {
+        if (pokemonAge <= state.cacheTimeToLive) {
             cache.delete(resolvedID);
             cache.set(resolvedID, {
                 data: pokemon,
@@ -33,7 +32,7 @@ export const cachePokemon = async (pokemonNameOrID) => {
     cache.set(pokemonData.id, { data: pokemonData, timestamp: Date.now() });
     nameToID.set(pokemonData.name, pokemonData.id);
     // eviction (LRU)
-    if (cache.size > cacheMaxSize) {
+    if (cache.size > state.cacheMaxSize) {
         const oldestKey = cache.keys().next().value;
         if (oldestKey !== undefined)
             cache.delete(oldestKey);

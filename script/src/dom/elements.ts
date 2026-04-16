@@ -1,13 +1,22 @@
-export const pokemonNumber = document.querySelector<HTMLSpanElement>('.pokemonNumber')
-export const pokemonName = document.querySelector<HTMLParagraphElement>('.pokemonName')
-export const pokemonImage = document.querySelector<HTMLImageElement>('.pokemonImage')
+function getElementDOM<T extends HTMLElement>(selector: string): T {
 
-export const previousButtonNavigation = document.querySelector<HTMLButtonElement>('.previousButton')
-export const nextButtonNavigation = document.querySelector<HTMLButtonElement>('.nextButton')
-export const pokedexSearchForm = document.querySelector<HTMLFormElement>('.pokemonSearch')
-export const pokemonNameOrIdInput = document.querySelector<HTMLInputElement>('.inputSearch')
+    const element = document.querySelector<T>(selector)
+    if (!element) throw new Error(`Element not encountered: ${selector}`)
 
-export const favoriteStampButton = document.querySelector<HTMLButtonElement>('.favorite')
-export const firstFavoriteButton = document.querySelector<HTMLButtonElement>('.one')
-export const secondFavoriteButton = document.querySelector<HTMLButtonElement>('.two')
-export const thirdFavoriteButton = document.querySelector<HTMLButtonElement>('.three')
+    return element
+
+}
+
+export const pokemonNumber = getElementDOM<HTMLSpanElement>(".pokemonNumber")
+export const pokemonName = getElementDOM<HTMLParagraphElement>(".pokemonName")
+export const pokemonImage = getElementDOM<HTMLImageElement>(".pokemonImage")
+export const previousButtonNavigation = getElementDOM<HTMLButtonElement>('.previousButton')
+export const nextButtonNavigation = getElementDOM<HTMLButtonElement>('.nextButton')
+export const pokedexSearchForm = getElementDOM<HTMLFormElement>('.pokemonSearch')
+export const pokemonNameOrIdInput = getElementDOM<HTMLInputElement>('.inputSearch')
+export const favoriteStampButton = getElementDOM<HTMLButtonElement>('.favorite')
+export const firstFavoriteButton = getElementDOM<HTMLButtonElement>('.one')
+export const secondFavoriteButton = getElementDOM<HTMLButtonElement>('.two')
+export const thirdFavoriteButton = getElementDOM<HTMLButtonElement>('.three')
+
+export const favoritesButtons = [firstFavoriteButton, secondFavoriteButton, thirdFavoriteButton]
